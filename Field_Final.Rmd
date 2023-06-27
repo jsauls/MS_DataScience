@@ -152,6 +152,11 @@ summary(model)
 
 ```
 
+## Conclusion
+
+In conclusion, I analyzed the counts of cases and deaths for the top largest countries. I then calculated the ratio of deaths to cases and created a linear model that analyzed this ratio as a function of population. In the future, I would like to look further into this ratio to understand what factors to contribute to higher death ratio in some countries. My hypothesis would be that high poverty levels in some countries may be a factor. 
+
+
 ## Identification of Bias
 
 One possible source of bias is that the data for this analysis is aggregated from many different sources. Each country has their own public health agency that gathers the data on Covid-19 for their country, which is then aggregated by Johns Hopkins. It is possible that some countries may try to deflate their number of cases or deaths to make themselves look better. 
