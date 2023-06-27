@@ -1,0 +1,176 @@
+---
+title: "NYC Shooting Incident Data"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+date: "2023-06-13"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Data
+
+The data that I will use for this assignment comes from Data.gov. It is titled "NYPD Shooting Incident Data (Historic)" and contains records going back to 2006 on every shooting incident that occurred in NYC.
+
+First I will load my libraries and import the data. 
+
+```{r import}
+library(tidyverse)
+library(lubridate)
+
+url <- "https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD"
+
+nyData <- read_csv(url)
+```
+
+## Summary of Data
+
+Next I will take a look at the first 10 rows and a summary of the data to get 
+a better understanding of its structure. 
+
+```{r summary}
+
+nyData
+
+summary(nyData)
+```
+
+## Tidy Data
+
+Next I will tidy and transform my data to get it into a usable format. To do
+this, I will set the OCCUR_DATE variable to the date datatype and rename the 
+"Latitude", "Longitude", and "Lon_Lat" variables to match the all caps naming
+convention of the other variables. I will also filter out the observations where
+the latitude or longitude are set to "NA" because I plan to use these variables
+later in my analysis.  I will then remove the variables that I will not need
+for my analysis. Finally, I will create two new variables called "MONTH_YEAR" 
+and "MONTH" that I will need for my analysis.
+
+```{r tidy}
+global <- nyData %>%
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+  rename(LATITUDE = "Latitude", 
+         LONGITUDE = "Longitude",
+         LON_LAT = "Lon_Lat") %>%
+  filter(is.na(LATITUDE) == FALSE,
+          is.na(LONGITUDE) == FALSE) %>%
+  select(-c(LOC_OF_OCCUR_DESC,PRECINCT,JURISDICTION_CODE,LOC_CLASSFCTN_DESC,
+            LOCATION_DESC,STATISTICAL_MURDER_FLAG,X_COORD_CD,Y_COORD_CD,
+            LON_LAT, INCIDENT_KEY, PERP_AGE_GROUP, PERP_SEX, PERP_RACE,
+            VIC_AGE_GROUP, VIC_SEX, VIC_RACE))
+
+global$MONTH_YEAR <- floor_date(global$OCCUR_DATE,"month")
+
+global$MONTH <- substr(as.character(global$OCCUR_DATE),6,7)
+
+summary(global)
+```
+
+## Analysis
+
+### Location
+
+First, I want to look at a count of the shootings by Boro to see if the shootings
+are concentrated in one particular area.
+
+```{r byboro}
+BY_BORO <- global %>%
+  group_by(BORO) %>%
+  summarize(n = n())
+
+ggplot(BY_BORO,aes(x =BORO,y=n)) +
+  geom_col()
+```
+
+
+
+```{r}
+
+
+
+
+```
+
+
+### Time
+
+I am also interested in looking at the total number of shootings over time to
+see if there are any interesting trends. To make the graph easier to read, I 
+will use the aggregated MONTH_YEAR variable that I created.
+
+```{r overtime}
+
+OVER_TIME <- global %>%
+  group_by(MONTH_YEAR) %>%
+  summarize(TOTAL = n())
+
+
+ggplot(OVER_TIME,aes(x =MONTH_YEAR,TOTAL)) +
+  geom_col()
+
+
+```
+
+
+From the chart above, I notice that the total number of shootings in a given month
+tends to go up and down depending on the time of year. To look further into this,
+I will look at the total number of shootings by month only.
+
+```{r}
+BY_MONTH <- global %>%
+  group_by(MONTH) %>%
+  summarize(TOTAL = n())
+
+
+ggplot(BY_MONTH,aes(x =MONTH,y=TOTAL)) +
+  geom_col()
+```
+
+
+Interestingly, it seems that shootings seem to increase around the summer months
+and then decrease in the winter months, with slight increases around January and
+February as well.
+
+
+For my model, I will look at the median time of day of shootings as a function
+of month. 
+
+
+```{r}
+
+
+mod <- global %>%
+  group_by(MONTH) %>%
+  summarize(MEDIAN_TIME = median(OCCUR_TIME))
+
+
+ggplot(data = mod, aes(x = MONTH, y = MEDIAN_TIME)) +
+         geom_col() +
+         scale_y_time()
+```
+
+
+Based on the model, it looks like shootings tend to happen earlier in the day
+during summer months and later in the day during winter months.
+
+
+## Bias Identification
+
+As a white man who is not from New York, it is possible that my background could
+be a source of bias. I am familiar with stereotypes that crime tends to be higher
+in high poverty neighborhoods, and much data shows that people of color are 
+disproportionately targeted by police. 
+
+One thing I found interesting about this data set is that the demographic information
+was missing for a large number of perpetrators. It made me wonder how this data
+is collected - does it come from police reports? I wonder if it is possible that 
+this could introduce a source of bias as well.
+
+It is important to be aware of bias when conducting data analysis, particularly
+when it comes to sensitive issues such as gun violence. Gun violence is a topic that is often in the news, and unfortunately, many headline stories about gun violence 
+and rising crime rates do not rely on the most accurate data. To mitigate my personal
+bias, I tried to led the data lead my analysis rather than going into the process
+with preconceived notions about what I might find.
