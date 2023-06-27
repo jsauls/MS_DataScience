@@ -1,0 +1,162 @@
+---
+title: "Field_Final"
+author: "Jackson Sauls"
+date: "2023-06-27"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Set up
+
+First I will start by librarying my packages and importing my data. The data I will use for this 
+project comes from Johns Hopkins University and describe trends in the Covid-19 pandemic over time.
+
+
+```{r set up}
+library(tidyverse)
+library(lubridate)
+
+link <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+
+file_names <- c("time_series_covid19_confirmed_US.csv","time_series_covid19_confirmed_global.csv",
+                "time_series_covid19_deaths_US.csv","time_series_covid19_deaths_global.csv")
+
+urls <- str_c(link,file_names)
+
+global_cases <- read_csv(urls[2])
+global_deaths <- read_csv(urls[4])
+US_cases <- read_csv(urls[1])
+US_deaths <-read_csv(urls[3])
+```
+
+## Tidy and Transform
+
+Next I will tidy and transform the data to get it into a usable format.
+
+```{r tidy}
+
+global_cases <- global_cases %>%
+  pivot_longer(cols = -c("Province/State","Country/Region",Lat,Long),
+               names_to = "date",
+               values_to = "cases") %>%
+  select(-c(Lat,Long))
+
+global_deaths <- global_deaths %>%
+  pivot_longer(cols = -c("Province/State","Country/Region",Lat,Long),
+               names_to = "date",
+               values_to = "deaths") %>%
+  select(-c(Lat,Long))
+
+global <- global_cases %>%
+  full_join(global_deaths) %>%
+  rename(Country_Region = "Country/Region",
+         Province_State = "Province/State") %>%
+  mutate(date = mdy(date))
+  
+global <- global %>% filter(cases > 0)
+
+US_cases <- US_cases %>%
+  pivot_longer(cols = -(UID:Combined_Key),
+               names_to = "date",
+               values_to = "cases") %>%
+  select(Admin2:cases) %>%
+  mutate(date = mdy(date)) %>%
+  select(-c(Lat,Long_))
+
+US_deaths <- US_deaths %>%
+  pivot_longer(cols = -c(UID:Population),
+               names_to = "date",
+               values_to = "deaths") %>%
+  select(Admin2:deaths) %>%
+  mutate(date = mdy(date)) %>%
+  select(-c(Lat,Long_))
+
+US <- US_cases %>%
+  full_join(US_deaths)
+
+global <- global %>%
+  unite("Combined_Key",
+        c(Province_State, Country_Region),
+        sep = ", ",
+        na.rm = TRUE,
+        remove = FALSE)
+
+uid_lookup_url <- "https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/UID_ISO_FIPS_LookUp_Table.csv"
+uid <- read_csv(uid_lookup_url) %>%
+  select(-c(Lat,Long_,Combined_Key,code3,iso2,iso3,Admin2))
+
+global <- global %>%
+  left_join(uid, by = c("Province_State", "Country_Region")) %>%
+  select(-c(UID, FIPS)) %>%
+  select(c(Province_State, Country_Region, date, cases, deaths, Population, Combined_Key))
+  
+```
+
+Next I will view a summary of my cleaned data to make sure it looks right.
+
+```{r summary}
+summary(global)
+
+global
+
+summary(US)
+```
+
+## Analysis
+
+Now I will analyze and visualize my data.
+
+```{r analysis}
+
+# plot aggregate cases and deaths over time
+
+ggplot(data = global, aes(x = date)) +
+  geom_line(aes(y = cases), color = "steelblue") +
+  geom_line(aes(y = deaths), color ="darkred")
+
+# create counts of total cases and total deaths for the largest countries
+
+counts <- global %>%
+  filter(Population > 100000000) %>%
+  group_by(Country_Region) %>%
+  mutate(sum_deaths = sum(deaths), sum_cases = sum(cases))
+  
+# plot total cases for the largest countries
+  
+ggplot(data = counts, aes(x = Country_Region)) +
+  geom_col(aes(y=sum_cases), color="steelblue")
+
+# plot total deaths for the largest countries
+
+ggplot(data = counts, aes(x = Country_Region)) +
+  geom_col(aes(y=sum_deaths), color="darkred")
+
+# calculate ratio of deaths to cases for each country
+
+ratio <- counts %>%
+  mutate(dc = sum_deaths / sum_cases)
+
+# plot ratio of deaths to cases for each country
+
+ggplot(data = ratio, aes(x = Country_Region)) +
+  geom_col(aes(y=dc), color="darkgreen")
+
+# create linear model of ratio of deaths to cases as a function of population
+
+model <- lm(dc ~ Population, data = ratio)
+
+summary(model)
+
+```
+
+## Identification of Bias
+
+One possible source of bias is that the data for this analysis is aggregated from many different sources. Each country has their own public health agency that gathers the data on Covid-19 for their country, which is then aggregated by Johns Hopkins. It is possible that some countries may try to deflate their number of cases or deaths to make themselves look better. 
+
+A source of person bias is that I come from the U.S. and am not familiar with the culture of health
+in other countries. The types of questions that I have about this data may be different than that of someone from another country. 
+
+
